@@ -29,7 +29,7 @@ class RabbitMQPublisher:
         connection = pika.BlockingConnection(self.config.get_connection_parameters())
         channel = connection.channel()
         
-        # Utiliza o exchange_type 'topic' conforme a configuração existente
+        # Utiliza o exchange_type 'topic' conforme a configuração existente no Java
         channel.exchange_declare(exchange=exchange, exchange_type='topic', durable=True)
         
         message = json.dumps(payload)

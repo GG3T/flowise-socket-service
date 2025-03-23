@@ -1,42 +1,61 @@
 import logging
-from flowise import Flowise, PredictionData
+import requests
+from src.utils.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
 class FlowiseClient:
     """Cliente para comunicação com a API Flowise."""
     
-    def __init__(self, base_url: str, chatflow_id: str):
+    def __init__(self, flowise_url: str):
         """
         Inicializa o cliente Flowise.
         
         Args:
-            base_url (str): URL base do Flowise (ex.: "https://flowise.numit.com.br")
-            chatflow_id (str): ID do chatflow (ex.: "2e204889-5b60-4eef-873e-dbbd3dee4ec1")
+            flowise_url (str): URL da API Flowise
         """
-        self.chatflow_id = chatflow_id
-        self.client = Flowise(base_url=base_url)
-        logger.info(f"Cliente Flowise inicializado para {base_url} com chatflow {chatflow_id}")
+        self.flowise_url = flowise_url
+        logger.info(f"Cliente Flowise inicializado para {flowise_url}")
 
-    def create_prediction(self, question: str, sessionId: str, streaming: bool = True):
+    @retry_with_backoff()
+    def create_prediction(self, question: str, sessionId: str, messageId: str):
         """
-        Cria a previsão utilizando o PredictionData com o overrideConfig definido.
+        Cria uma previsão enviando uma requisição para a API Flowise.
 
         Args:
             question (str): Pergunta a ser enviada.
-            sessionId (str): SessionId que será enviado no overrideConfig.
-            streaming (bool): Se a resposta deve ser em streaming.
+            sessionId (str): SessionId da conversa.
+            messageId (str): ID da mensagem.
             
         Returns:
-            Generator: Gerador com os chunks da resposta.
+            dict: Resposta da API Flowise.
         """
-        logger.debug(f"Criando previsão para: {question[:50]}...")
+        logger.debug(f"Enviando pergunta para Flowise: {question[:50]}...")
         
-        prediction_data = PredictionData(
-            chatflowId=self.chatflow_id,
-            question=question,
-            streaming=streaming,
-            overrideConfig={"sessionId": sessionId}
+        payload = {
+            "question": question,
+            "overrideConfig": {
+                "sessionId": sessionId
+            },
+            "messageId": messageId
+        }
+        
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.post(
+            self.flowise_url,
+            headers=headers,
+            json=payload,
+            timeout=60  # 60 segundos de timeout
         )
         
-        return self.client.create_prediction(prediction_data)
+        response.raise_for_status()  # Lança exceção se a resposta não for 2xx
+        
+        # Tenta fazer parse da resposta como JSON
+        try:
+            return response.json()
+        except:
+            # Se não for JSON, retorna o texto
+            return response.text

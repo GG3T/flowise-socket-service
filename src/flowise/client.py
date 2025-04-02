@@ -1,6 +1,7 @@
 import logging
 import requests
 from src.utils.retry import retry_with_backoff
+from src.utils.datetime import get_brasilia_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +33,17 @@ class FlowiseClient:
         """
         logger.debug(f"Enviando pergunta para Flowise: {question[:50]}...")
         
+        # Obtém a data e hora atual no fuso horário de Brasília
+        current_datetime = get_brasilia_datetime()
+        logger.info(f"Data e hora atual (Brasília): {current_datetime}")
+        
         payload = {
             "question": question,
             "overrideConfig": {
-                "sessionId": sessionId
+                "sessionId": sessionId,
+                "vars": {
+                    "dateTime": current_datetime
+                }
             },
             "messageId": messageId
         }

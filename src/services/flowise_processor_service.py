@@ -1,6 +1,7 @@
 import json
 import logging
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
 from typing import Dict, Optional
@@ -45,6 +46,10 @@ class FlowiseProcessorService:
         
         # Cache de instâncias problemáticas para evitar logs excessivos
         self.problem_instances: Dict[str, float] = {}
+        
+        # Inicia um thread para limpeza periódica das filas inativas
+        self.cleanup_thread = threading.Thread(target=self._periodic_cleanup, daemon=True)
+        self.cleanup_thread.start()
         
         logger.info(f"FlowiseProcessorService inicializado com pool de {THREAD_POOL_SIZE} threads")
 
@@ -117,12 +122,13 @@ class FlowiseProcessorService:
             with self.active_threads_lock:
                 self.active_threads[sessionId] = False
     
-    def _get_instance_url(self, instance_name: str) -> Optional[str]:
+    def _get_instance_url(self, instance_name: str, retry_attempt=0) -> Optional[str]:
         """
         Obtém a URL da instância, com verificação de erros e fallback.
         
         Args:
             instance_name (str): Nome da instância.
+            retry_attempt (int): Número da tentativa atual (para evitar recursão infinita).
             
         Returns:
             Optional[str]: URL da instância ou None se não encontrada.
@@ -130,17 +136,22 @@ class FlowiseProcessorService:
         # Primeiro, tenta obter a URL normalmente
         flowise_url = self.instance_service.get_flowise_url(instance_name)
         
-        # Se não encontrou, tenta pré-carregar novamente as instâncias
-        # Isso ajuda em situações onde o banco de dados foi atualizado
-        # mas o cache não reflete as alterações
-        if not flowise_url:
+        # Se não encontrou e essa é a primeira tentativa, tenta recarregar
+        if not flowise_url and retry_attempt == 0:
             try:
                 # Tentativa de recarregar todas as instâncias
                 logger.info(f"Instância '{instance_name}' não encontrada no cache. Recarregando todas...")
+                
+                # Verifica a saúde do pool de conexões do serviço de instâncias
+                healthy = self.instance_service.check_pool_health()
+                if not healthy:
+                    logger.warning("Pool de conexões não está saudável após verificação")
+                
+                # Tenta recarregar as instâncias
                 self.instance_service.preload_instances()
                 
-                # Tenta novamente após recarregar
-                flowise_url = self.instance_service.get_flowise_url(instance_name)
+                # Tenta novamente após recarregar (com controle de recursão)
+                return self._get_instance_url(instance_name, retry_attempt=1)
             except Exception as e:
                 logger.error(f"Erro ao recarregar instâncias: {e}")
         
@@ -165,7 +176,6 @@ class FlowiseProcessorService:
             
             if not flowise_url:
                 # Evita logar muitas mensagens para a mesma instância
-                import time
                 current_time = time.time()
                 
                 # Só loga avisos a cada 5 minutos por instância
@@ -240,3 +250,49 @@ class FlowiseProcessorService:
                 logger.info(f"Resposta de erro publicada para session {sessionId}, messageId {messageId}")
             except Exception as inner_e:
                 logger.error(f"Não foi possível enviar resposta de erro: {inner_e}")
+                
+    def _periodic_cleanup(self):
+        """
+        Thread que executa limpeza periódica de recursos não utilizados.
+        Remove sessões inativas e esvazia filas antigas.
+        """
+        while True:
+            try:
+                self.cleanup_inactive_sessions()
+                # Executa limpeza a cada 15 minutos
+                time.sleep(900)
+            except Exception as e:
+                logger.error(f"Erro durante limpeza periódica: {e}")
+                # Se houver falha, espera um tempo menor e tenta novamente
+                time.sleep(60)
+    
+    def cleanup_inactive_sessions(self, max_idle_time=3600):
+        """
+        Remove sessões inativas do dicionário de filas.
+        
+        Args:
+            max_idle_time (int): Tempo máximo de inatividade em segundos (padrão: 1 hora).
+        """
+        try:
+            logger.info("Iniciando limpeza de sessões inativas")
+            
+            with self.queue_lock:
+                inactive_sessions = []
+                for session_id, queue in self.processing_queues.items():
+                    with self.active_threads_lock:
+                        is_active = self.active_threads.get(session_id, False)
+                    
+                    if not is_active and queue.empty():
+                        inactive_sessions.append(session_id)
+                
+                # Remove sessões inativas
+                for session_id in inactive_sessions:
+                    del self.processing_queues[session_id]
+                    with self.active_threads_lock:
+                        if session_id in self.active_threads:
+                            del self.active_threads[session_id]
+                
+                logger.info(f"Limpeza finalizada: {len(inactive_sessions)} sessões inativas removidas")
+                
+        except Exception as e:
+            logger.error(f"Erro ao limpar sessões inativas: {e}")

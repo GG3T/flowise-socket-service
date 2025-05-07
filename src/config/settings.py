@@ -45,6 +45,9 @@ DB_CONFIG = {
     "min_connections": 2,
     "max_connections": 10,
     "connect_timeout": 30,
+    # Novas configurações de health check
+    "health_check_interval": int(os.getenv("DB_HEALTH_CHECK_INTERVAL", 300)),  # 5 minutos
+    "connection_max_age": int(os.getenv("DB_CONNECTION_MAX_AGE", 1800)),  # 30 minutos
 }
 
 # Configuração do Flowise
@@ -54,6 +57,10 @@ FLOWISE_RESPONSE_ROUTING_KEY = os.getenv("FLOWISE_RESPONSE_ROUTING_KEY", "flowis
 
 # Configuração do Thread Pool
 THREAD_POOL_SIZE = int(os.getenv("THREAD_POOL_SIZE", 10))
+
+# Limpeza de recursos
+SESSION_CLEANUP_INTERVAL = int(os.getenv("SESSION_CLEANUP_INTERVAL", 900))  # 15 minutos
+SESSION_MAX_IDLE_TIME = int(os.getenv("SESSION_MAX_IDLE_TIME", 3600))  # 1 hora
 
 # Cache TTL em segundos (12 horas por padrão)
 CACHE_TTL = int(os.getenv("CACHE_TTL", 43200))  # 12 horas

@@ -15,7 +15,7 @@ LOGGING_CONFIG = {
 
 # Configuração do RabbitMQ
 RABBITMQ_CONFIG = {
-    "host": os.getenv("RABBITMQ_HOST", "rabbitmq.chatgmia.org"),
+    "host": os.getenv("RABBITMQ_HOST", "rabbitmq.numit.com.br"),
     "port": int(os.getenv("RABBITMQ_PORT", 5672)),
     "username": os.getenv("RABBITMQ_USERNAME", "admin"),
     "password": os.getenv("RABBITMQ_PASSWORD", "8a2cfcdbb1b87da5a47a2e681ca46991"),
@@ -38,8 +38,8 @@ REDIS_CONFIG = {
 DB_CONFIG = {
     "dbname": os.getenv("DB_NAME", "postgres"),
     "user": os.getenv("DB_USER", "postgres"),
-    "password": os.getenv("DB_PASSWORD", "71d14724653158e0e40fd03f522ac11c"),
-    "host": os.getenv("DB_HOST", "178.156.146.193"),
+    "password": os.getenv("DB_PASSWORD", "d16940f9c621e23d87a4062224175db5"),
+    "host": os.getenv("DB_HOST", "178.156.142.177"),
     "port": int(os.getenv("DB_PORT", 5432)),
     # Configurações do pool de conexões
     "min_connections": 2,

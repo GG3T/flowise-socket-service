@@ -70,7 +70,8 @@ class InstanceService:
             Optional[str]: URL da instância Flowise ou None se não encontrado.
         """
         cache_key = f"flowise:instance:{instance_name}"
-        
+        logger.info(f"Cache_key: {cache_key}")
+
         # 1. Tenta obter do cache Redis
         url = self._get_from_redis_cache(cache_key)
         if url:

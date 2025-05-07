@@ -36,13 +36,15 @@ class FlowiseClient:
         # Obtém a data e hora atual no fuso horário de Brasília
         current_datetime = get_brasilia_datetime()
         logger.info(f"Data e hora atual (Brasília): {current_datetime}")
-        
+
+
         payload = {
             "question": question,
             "overrideConfig": {
                 "sessionId": sessionId,
                 "vars": {
                     "dateTime": current_datetime
+                    # TODO ENVIAR SUMMARY
                 }
             },
             "messageId": messageId
